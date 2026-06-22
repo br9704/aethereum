@@ -93,6 +93,7 @@ repo. Aethereum is a hosted product; you use it with `npx aethereum` and the MCP
 - Docs: https://www.aethereum.dev/docs
 - Integrations: https://www.aethereum.dev/integrations
 
-## License
+## Copyright
 
-MIT. See [LICENSE](./LICENSE).
+© 2026 Bruno Jaamaa. All rights reserved. Aethereum is a hosted product; this repo is its
+public documentation. The product, the CLI, and the engine are not open source.
