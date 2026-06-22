@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "aethereum": {
+      "type": "http",
+      "url": "https://www.aethereum.dev/api/mcp"
+    }
+  }
+}
