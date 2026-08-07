@@ -2,7 +2,11 @@ name: runner probe
 on:
   workflow_dispatch:
 jobs:
-  linux:
-    runs-on: ubuntu-latest
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, macos-15, macos-15-intel, windows-2022]
+    runs-on: ${{ matrix.os }}
     steps:
-      - run: echo "linux runner works"; uname -m
+      - run: echo "runner ${{ matrix.os }} works"
