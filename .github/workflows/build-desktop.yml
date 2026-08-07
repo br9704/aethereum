@@ -62,7 +62,14 @@ jobs:
           node-version: 24
 
       - name: Enable pnpm
-        run: corepack enable
+        shell: bash
+        run: |
+          corepack enable
+          # The repo pins packageManager: pnpm@11.5.2. Activate exactly that:
+          # `npx pnpm` resolves whatever the registry hands back, which is how
+          # the first Windows run got a pnpm that disagreed with lockfileVersion 9.
+          corepack prepare pnpm@11.5.2 --activate
+          pnpm --version
 
       # ubuntu-22.04 deliberately, not a newer image: an AppImage inherits the
       # glibc floor of the machine that builds it, so building on the OLDEST
@@ -73,7 +80,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf \
+            libwebkit2gtk-4.1-dev librsvg2-dev patchelf \
             build-essential curl wget file libssl-dev libayatana-appindicator3-dev
 
       # The runners ship rustup with the host target already installed, which is
@@ -89,9 +96,12 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          npx pnpm install --frozen-lockfile > install.log 2>&1 || {
+          pnpm install --frozen-lockfile > install.log 2>&1 || {
             echo "::error::workspace install failed"
-            grep -E '^(ERR_|Error|error)' install.log | head -20 || true
+            # Full log on purpose: this is dependency resolution (package names
+            # and versions), not source. The narrow filter used on the first run
+            # matched nothing and left the failure undiagnosable.
+            cat install.log
             exit 1
           }
           echo "workspace installed"
@@ -101,7 +111,7 @@ jobs:
       - name: Build the shared package
         shell: bash
         run: |
-          npx pnpm --filter @br9704/aethereum-shared build > shared.log 2>&1 || {
+          pnpm --filter @br9704/aethereum-shared build > shared.log 2>&1 || {
             echo "::error::shared build failed"
             grep -E '^(error|warning)' shared.log | head -20 || true
             exit 1
