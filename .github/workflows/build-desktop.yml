@@ -124,8 +124,21 @@ jobs:
         run: |
           node scripts/build-app-binaries.mjs --target ${{ matrix.label }} > build.log 2>&1 || {
             echo "::error::app build failed for ${{ matrix.label }}"
-            echo "--- diagnostics (crate + message only; source excerpts withheld) ---"
-            grep -E '^(error|warning)' build.log | head -40 || true
+            echo "--- diagnostics (source excerpts withheld) ---"
+            # INVERSE filter, not a whitelist. The first version matched only
+            # ^error/^warning and so printed five harmless warnings while hiding
+            # the actual cause, which came from our own script and started with
+            # "[build-app-binaries] ERROR:". A whitelist of what to SHOW cannot
+            # anticipate the message that matters; a blacklist of what to HIDE
+            # can, because the thing being protected has a fixed shape.
+            #
+            # rustc renders source as: "  --> path:line", "   |", "12 | <code>",
+            # "   = note: ...". Dropping exactly those four shapes removes the
+            # code and the file paths while keeping every diagnostic sentence.
+            grep -vE '^\s*[0-9]*\s*\|' build.log \
+              | grep -vE '^\s*-->' \
+              | grep -vE '^\s*=' \
+              | tail -60 || true
             exit 1
           }
           echo "built ${{ matrix.label }}"
