@@ -1,0 +1,142 @@
+# Build the Aethereum desktop app for the platforms that cannot be built on a
+# Mac: Linux x64 and Windows x64.
+#
+# WHY THIS LIVES IN THE PUBLIC REPO
+# This repository is already the app's distribution point (the updater polls
+# its releases feed), and public repositories get free standard runners.
+# Actions on the private source repo is currently stopped on a billing
+# failure, so this is the only route to a genuine Linux/Windows binary. The
+# alternative that was rejected is repacking an old tarball under a new
+# version number, which ships users a build that is not what its number says.
+#
+# LOGS ARE PUBLIC HERE, SO COMPILER OUTPUT IS NOT PRINTED
+# The source is proprietary and rustc quotes the offending source lines for
+# every warning and error. All build output is redirected to a file that is
+# NEVER uploaded. On failure only column-0 `error:`/`warning:` lines are
+# echoed: those name the crate and the diagnostic, while the indented
+# `--> file:line` excerpts that carry actual source are filtered out. If you
+# need more than that to debug, run the build locally rather than loosening
+# this.
+name: build desktop binaries
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Ref of br9704/hive to build"
+        default: main
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      # One platform failing must not cancel the other: a partial result is
+      # recoverable by re-running one job, a cancelled one is not.
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-22.04, label: linux-x64 }
+          - { os: windows-2022, label: win32-x64 }
+
+    steps:
+      # The source is NOT in this repository. It is checked out from the private
+      # one with a read-only token held in this repo's secrets. Nothing about
+      # the source is written back, and the checkout itself logs no file
+      # contents.
+      - name: Check out the private source
+        uses: actions/checkout@v4
+        with:
+          repository: br9704/hive
+          ref: ${{ inputs.ref }}
+          token: ${{ secrets.HIVE_SOURCE_TOKEN }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      # ubuntu-22.04 deliberately, not a newer image: an AppImage inherits the
+      # glibc floor of the machine that builds it, so building on the OLDEST
+      # supported Ubuntu is what keeps the Linux binary runnable on older
+      # distros.
+      - name: Linux system dependencies for Tauri
+        if: matrix.label == 'linux-x64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf \
+            build-essential curl wget file libssl-dev libayatana-appindicator3-dev
+
+      # The runners ship rustup with the host target already installed, which is
+      # the target each of these jobs needs. Print versions only.
+      - name: Toolchain
+        shell: bash
+        run: |
+          rustc --version
+          cargo --version
+          node --version
+
+      - name: Install workspace dependencies
+        shell: bash
+        run: |
+          set -o pipefail
+          npx pnpm install --frozen-lockfile > install.log 2>&1 || {
+            echo "::error::workspace install failed"
+            grep -E '^(ERR_|Error|error)' install.log | head -20 || true
+            exit 1
+          }
+          echo "workspace installed"
+
+      # packages/cli and apps/web resolve the shared package through dist, so a
+      # stale build makes everything downstream lie. Always build it first.
+      - name: Build the shared package
+        shell: bash
+        run: |
+          npx pnpm --filter @br9704/aethereum-shared build > shared.log 2>&1 || {
+            echo "::error::shared build failed"
+            grep -E '^(error|warning)' shared.log | head -20 || true
+            exit 1
+          }
+          echo "shared built"
+
+      # THE ONE STEP WHOSE OUTPUT MUST NOT REACH THIS LOG. See the header.
+      - name: Build the app
+        shell: bash
+        run: |
+          node scripts/build-app-binaries.mjs --target ${{ matrix.label }} > build.log 2>&1 || {
+            echo "::error::app build failed for ${{ matrix.label }}"
+            echo "--- diagnostics (crate + message only; source excerpts withheld) ---"
+            grep -E '^(error|warning)' build.log | head -40 || true
+            exit 1
+          }
+          echo "built ${{ matrix.label }}"
+
+      # Prove the payload is present and executable BEFORE it leaves the runner.
+      # build-app-binaries already asserts the executable bit survives packing;
+      # this is the coarse "did anything get produced at all" check, and it
+      # prints sizes rather than contents.
+      - name: Verify the staged payload
+        shell: bash
+        run: |
+          dir="apps/desktop/dist-npm/@aethereumdev/app-${{ matrix.label }}"
+          test -d "$dir" || { echo "::error::nothing staged at $dir"; exit 1; }
+          find "$dir" -type f -exec ls -l {} \; | awk '{print $1, $5, $NF}'
+
+      - name: Upload the staged package
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-${{ matrix.label }}
+          path: apps/desktop/dist-npm/@aethereumdev/app-${{ matrix.label }}
+          retention-days: 7
+          # Preserves nothing about modes, which is fine: the exec bit is
+          # restored and re-verified on the machine that publishes.
+          if-no-files-found: error
