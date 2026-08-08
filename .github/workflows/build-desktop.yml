@@ -119,10 +119,23 @@ jobs:
           echo "shared built"
 
       # THE ONE STEP WHOSE OUTPUT MUST NOT REACH THIS LOG. See the header.
+      #
+      # --updater additionally emits the signed update archive + detached .sig.
+      # The signing key is a repository secret and is NEVER echoed: it reaches
+      # tauri through the environment only. Losing it ends auto-update for every
+      # installed copy, and anyone who obtains it can publish an update that
+      # every install will trust — which is why this step prints nothing.
       - name: Build the app
         shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
-          node scripts/build-app-binaries.mjs --target ${{ matrix.label }} > build.log 2>&1 || {
+          if [ -z "${TAURI_SIGNING_PRIVATE_KEY}" ]; then
+            echo "::error::TAURI_SIGNING_PRIVATE_KEY is not set on this repository; --updater would produce unsigned artefacts that every client rejects"
+            exit 1
+          fi
+          node scripts/build-app-binaries.mjs --updater --target ${{ matrix.label }} > build.log 2>&1 || {
             echo "::error::app build failed for ${{ matrix.label }}"
             echo "--- diagnostics (source excerpts withheld) ---"
             # INVERSE filter, not a whitelist. The first version matched only
@@ -162,4 +175,15 @@ jobs:
           retention-days: 7
           # Preserves nothing about modes, which is fine: the exec bit is
           # restored and re-verified on the machine that publishes.
+          if-no-files-found: error
+
+      # The signed update archive, its .sig, and the manifest fragment naming
+      # both. Separate from the npm payload on purpose: these go to a GitHub
+      # Release for the updater to poll, not to the registry.
+      - name: Upload the signed update artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: updater-${{ matrix.label }}
+          path: apps/desktop/dist-updater
+          retention-days: 7
           if-no-files-found: error
