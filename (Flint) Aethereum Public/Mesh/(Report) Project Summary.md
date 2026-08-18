@@ -83,11 +83,11 @@ The second of its two commits is the whole thesis: **`b2c6954 remove MIT licence
 
 ## Next 5 actions
 
-- [ ] Add the four missing tools to `MCP.md`, and remove or mark the two deprecated ones #task [project:: Aethereum Public] [priority:: high]
-- [ ] Extend `hive`'s tool-count consistency test to cover this repo, or add a checked-in snapshot so drift fails a build somewhere #task [project:: Aethereum Public] [priority:: high]
-- [ ] Reconcile the editor list between `README.md` and `MCP.md` #task [project:: Aethereum Public]
-- [ ] Decide whether the CLI's `README` on npm should point at `aethereum.dev/docs` instead of a repo that lags the package #task [project:: Aethereum Public]
-- [ ] Rename the local folder to `aethereum` to match the remote, or accept the mismatch and note it #task [project:: Aethereum Public]
+- [ ] Add the four missing tools to `MCP.md`, and remove or mark the two deprecated ones #task [project:: Aethereum Public] [priority:: high] ^t-jpybct7g
+- [ ] Extend `hive`'s tool-count consistency test to cover this repo, or add a checked-in snapshot so drift fails a build somewhere #task [project:: Aethereum Public] [priority:: high] ^t-yat68tc7
+- [ ] Reconcile the editor list between `README.md` and `MCP.md` #task [project:: Aethereum Public] ^t-gcwaesng
+- [ ] Decide whether the CLI's `README` on npm should point at `aethereum.dev/docs` instead of a repo that lags the package #task [project:: Aethereum Public] ^t-mfvt2z4f
+- [ ] Rename the local folder to `aethereum` to match the remote, or accept the mismatch and note it #task [project:: Aethereum Public] ^t-ccj6qsw2
 
 ## The links that matter
 
